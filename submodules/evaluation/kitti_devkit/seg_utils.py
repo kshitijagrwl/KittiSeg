@@ -19,7 +19,44 @@ import numpy as np
 # import pylab
 import matplotlib.cm as cm
 import os
-# import cv2
+import cv2
+import tensorflow as tf 
+
+def blend_transparent(img, overlay_t_img):
+
+    overlay_img = overlay_t_img[:,:,:3]
+    overlay_mask = overlay_t_img[:,:,3:]
+
+    background_mask = 255 - overlay_mask
+
+    overlay_mask = cv2.cvtColor(overlay_mask, cv2.COLOR_GRAY2BGR)
+    background_mask = cv2.cvtColor(background_mask, cv2.COLOR_GRAY2BGR)
+
+    img_part = (img * (1 / 255.0)) * (background_mask * (1 / 255.0))
+    overlay_part = (overlay_img * (1 / 255.0)) * (overlay_mask * (1 / 255.0))
+
+    return np.uint8(cv2.addWeighted(img_part, 255.0, overlay_part, 255.0, 0.0))
+
+def paint(img,colormap):
+    channel = len(colormap[0])
+    new_im = np.zeros((img.shape[0],img.shape[1],channel))
+    for key in colormap :
+        new_im[np.where(img==key)] = colormap[key]
+    return new_im
+
+def decode_labels(mask, img_shape, num_classes):
+    if num_classes == 150:
+        color_table = read_labelcolours(matfn)
+    else:
+        color_table = label_colours
+
+    color_mat = tf.constant(color_table, dtype=tf.float32)
+    onehot_output = tf.one_hot(mask, depth=num_classes)
+    onehot_output = tf.reshape(onehot_output, (-1, num_classes))
+    pred = tf.matmul(onehot_output, color_mat)
+    pred = tf.reshape(pred, (1, img_shape[0], img_shape[1], 3))
+    
+    return pred
 
 def make_overlay(image, gt_prob):
 
@@ -33,7 +70,7 @@ def make_overlay(image, gt_prob):
 
 def overlayImageWithConfidence(in_image, conf, vis_channel = 1, threshold = 0.5):
     '''
-    
+
     :param in_image:
     :param conf:
     :param vis_channel:
@@ -43,7 +80,7 @@ def overlayImageWithConfidence(in_image, conf, vis_channel = 1, threshold = 0.5)
         visImage = in_image.copy().astype('f4')/255
     else:
         visImage = in_image.copy()
-    
+
     channelPart = visImage[:, :, vis_channel] * (conf > threshold) - conf
     channelPart[channelPart < 0] = 0
     visImage[:, :, vis_channel] = 0.5*visImage[:, :, vis_channel] + 255*conf
@@ -61,7 +98,7 @@ def evalExp(gtBin, cur_prob, thres, validMap = None, validArea=None):
     assert len(cur_prob.shape) == 2, 'Wrong size of input prob map'
     assert len(gtBin.shape) == 2, 'Wrong size of input prob map'
     thresInf = np.concatenate(([-np.Inf], thres, [np.Inf]))
-    
+
     #Merge validMap with validArea
     if validMap is not None:
         if validArea is not None:
@@ -77,12 +114,12 @@ def evalExp(gtBin, cur_prob, thres, validMap = None, validArea=None):
     fnHist = np.histogram(fnArray,bins=thresInf)[0]
     fnCum = np.cumsum(fnHist)
     FN = fnCum[0:0+len(thres)];
-    
+
     if validMap is not None:
         fpArray = cur_prob[(gtBin == False) & (validMap == True)]
     else:
         fpArray = cur_prob[(gtBin == False)]
-    
+
     fpHist  = np.histogram(fpArray, bins=thresInf)[0]
     fpCum = np.flipud(np.cumsum(np.flipud(fpHist)))
     FP = fpCum[1:1+len(thres)]
@@ -121,13 +158,13 @@ def pxEval_maximizeFMeasure(totalPosNum, totalNegNum, totalFN, totalFP, thresh =
     precision =  totalTP / (totalTP + totalFP + 1e-10)
 
     accuracy = (totalTP + totalTN) / (float( totalPosNum ) + float( totalNegNum ))
-    
+
     selector_invalid = (recall==0) & (precision==0)
     recall = recall[~selector_invalid]
     precision = precision[~selector_invalid]
-        
+
     maxValidIndex = len(precision)
-    
+
     #Pascal VOC average precision
     AvgPrec = 0
     counter = 0
@@ -139,15 +176,15 @@ def pxEval_maximizeFMeasure(totalPosNum, totalNegNum, totalFN, totalFP, thresh =
         AvgPrec += pmax
         counter += 1
     AvgPrec = AvgPrec/counter
-    
-    
+
+
     # F-measure operation point
     beta = 1.0
     betasq = beta**2
     F = (1 + betasq) * (precision * recall)/((betasq * precision) + recall + 1e-10)
     index = F.argmax()
     MaxF= F[index]
-    
+
     recall_bst = recall[index]
     precision_bst =  precision[index]
 
@@ -189,7 +226,7 @@ def pxEval_maximizeFMeasure(totalPosNum, totalNegNum, totalFN, totalFP, thresh =
 
 def calcEvalMeasures(evalDict, tag  = '_wp'):
     '''
-    
+
     :param evalDict:
     :param tag:
     '''
@@ -215,8 +252,8 @@ def calcEvalMeasures(evalDict, tag  = '_wp'):
     #beta = 1.0
     #betasq = beta**2
     #F_max = (1 + betasq) * (precision * recall)/((betasq * precision) + recall + 1e-10)
-    
-    
+
+
     outDict =dict()
 
     outDict['TP'+ tag] = TP
@@ -240,7 +277,7 @@ def setFigLinesBW(fig):
     """
     for ax in fig.get_axes():
         setAxLinesBW(ax)
-        
+
 def setAxLinesBW(ax):
     """
     Take each Line2D in the axes, ax, and convert the line style to be
@@ -273,10 +310,10 @@ def setAxLinesBW(ax):
         line.set_dashes(COLORMAP[origColor]['dash'])
         line.set_marker(COLORMAP[origColor]['marker'])
         line.set_markersize(MARKERSIZE)
-        
+
 def plotPrecisionRecall(precision, recall, outFileName, Fig=None, drawCol=1, textLabel = None, title = None, fontsize1 = 24, fontsize2 = 20, linewidth = 3):
     '''
-    
+
     :param precision:
     :param recall:
     :param outFileName:
@@ -287,13 +324,13 @@ def plotPrecisionRecall(precision, recall, outFileName, Fig=None, drawCol=1, tex
     :param fontsize2:
     :param linewidth:
     '''
-                      
-    clearFig = False  
-           
+
+    clearFig = False
+
     if Fig == None:
         Fig = pylab.figure()
         clearFig = True
-        
+
     #tableString = 'Algo avgprec Fmax prec recall accuracy fpr Q(TonITS)\n'
     linecol = ['g','m','b','c']
     #if we are evaluating SP, then BL is available
@@ -308,14 +345,14 @@ def plotPrecisionRecall(precision, recall, outFileName, Fig=None, drawCol=1, tex
     setFigLinesBW(Fig)
     if textLabel!= None:
         pylab.legend(loc='lower left',prop={'size':fontsize2})
-    
+
     if title!= None:
         pylab.title(title, fontsize=fontsize1)
-        
+
     #pylab.title(title,fontsize=24)
     pylab.ylabel('PRECISION [%]',fontsize=fontsize1)
     pylab.xlabel('RECALL [%]',fontsize=fontsize1)
-    
+
     pylab.xlim(0,100)
     pylab.xticks( [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
                       ('0','','20','','40','','60','','80','','100'), fontsize=fontsize2 )
@@ -323,8 +360,8 @@ def plotPrecisionRecall(precision, recall, outFileName, Fig=None, drawCol=1, tex
     pylab.yticks( [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
                       ('0','','20','','40','','60','','80','','100'), fontsize=fontsize2 )
     pylab.grid(True)
-   
-    # 
+
+    #
     if type(outFileName) != list:
         pylab.savefig( outFileName )
     else:
@@ -333,12 +370,12 @@ def plotPrecisionRecall(precision, recall, outFileName, Fig=None, drawCol=1, tex
     if clearFig:
         pylab.close()
         Fig.clear()
-   
+
 
 
 def saveBEVImageWithAxes(data, outputname, cmap = None, xlabel = 'x [m]', ylabel = 'z [m]', rangeX = [-10, 10], rangeXpx = None, numDeltaX = 5, rangeZ = [7, 62], rangeZpx = None, numDeltaZ = 5, fontSize = 16):
     '''
-    
+
     :param data:
     :param outputname:
     :param cmap:
@@ -353,22 +390,22 @@ def saveBEVImageWithAxes(data, outputname, cmap = None, xlabel = 'x [m]', ylabel
     #fig.add_axes(ax)
     if cmap != None:
         pylab.set_cmap(cmap)
-    
+
     #ax.imshow(data, interpolation='nearest', aspect = 'normal')
     ax.imshow(data, interpolation='nearest')
-    
+
     if rangeXpx == None:
         rangeXpx = (0, data.shape[1])
-    
+
     if rangeZpx == None:
         rangeZpx = (0, data.shape[0])
-        
+
     modBev_plot(ax, rangeX, rangeXpx, numDeltaX, rangeZ, rangeZpx, numDeltaZ, fontSize, xlabel = xlabel, ylabel = ylabel)
     #plt.savefig(outputname, bbox_inches='tight', dpi = dpi)
     pylab.savefig(outputname, dpi = data.shape[0]/Scale)
     pylab.close()
     fig.clear()
-    
+
 def modBev_plot(ax, rangeX = [-10, 10 ], rangeXpx= [0, 400], numDeltaX = 5, rangeZ= [8,48 ], rangeZpx= [0, 800], numDeltaZ = 9, fontSize = None, xlabel = 'x [m]', ylabel = 'z [m]'):
     '''
 
@@ -377,10 +414,10 @@ def modBev_plot(ax, rangeX = [-10, 10 ], rangeXpx= [0, 400], numDeltaX = 5, rang
     #TODO: Configureabiltiy would be nice!
     if fontSize==None:
         fontSize = 8
- 
+
     ax.set_xlabel(xlabel, fontsize=fontSize)
     ax.set_ylabel(ylabel, fontsize=fontSize)
-        
+
     zTicksLabels_val = np.linspace(rangeZpx[0], rangeZpx[1], numDeltaZ)
     ax.set_yticks(zTicksLabels_val)
     #ax.set_yticks([0, 100, 200, 300, 400, 500, 600, 700, 800])
@@ -392,5 +429,3 @@ def modBev_plot(ax, rangeX = [-10, 10 ], rangeXpx= [0, 400], numDeltaX = 5, rang
     zTicksLabels_val = np.linspace(rangeZ[1],rangeZ[0], numDeltaZ)
     zTicksLabels = map(lambda x: str(int(x)), zTicksLabels_val)
     ax.set_yticklabels(zTicksLabels,fontsize=fontSize)
-    
- 

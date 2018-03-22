@@ -129,9 +129,9 @@ def _make_data_gen(hypes, phase, data_dir):
     """Return a data generator that outputs image samples.
 
     @ Returns
-    image: integer array of shape [height, width, 3].
+    image: integer array of shape [width, height, 3].
     Representing RGB value of each pixel.
-    gt_image: boolean array of shape [height, width, num_classes].
+    gt_image: boolean array of shape [width, height, num_classes].
     Set `gt_image[i,j,k] == 1` if and only if pixel i,j
     is assigned class k. `gt_image[i,j,k] == 0` otherwise.
 
@@ -147,30 +147,33 @@ def _make_data_gen(hypes, phase, data_dir):
 
     data_file = os.path.join(data_dir, data_file)
 
-    road_color = np.array(hypes['data']['road_color'])
-    background_color = np.array(hypes['data']['background_color'])
+    num_classes = hypes['arch']['num_classes']
+
+    colors = np.array(hypes['colors'])
+    # for key in hypes['colors']:
+    #     colors.append(np.array(hypes['colors'][key]))
 
     data = _load_gt_file(hypes, data_file)
 
     for image, gt_image in data:
 
-        gt_bg = np.all(gt_image == background_color, axis=2)
-        gt_road = np.all(gt_image == road_color, axis=2)
+        shape = gt_image.shape
 
-        assert(gt_road.shape == gt_bg.shape)
-        shape = gt_bg.shape
-        gt_bg = gt_bg.reshape(shape[0], shape[1], 1)
-        gt_road = gt_road.reshape(shape[0], shape[1], 1)
+        gt = np.all(gt_image == colors[0], axis=2).reshape(shape[0], shape[1], 1)
 
-        gt_image = np.concatenate((gt_bg, gt_road), axis=2)
+        for i in range(1,len(colors)) :
+
+            new_gt = np.all(gt_image == colors[i], axis=2).reshape(shape[0], shape[1], 1)
+
+            gt = np.concatenate((gt, new_gt), axis=2)
 
         if phase == 'val':
-            yield image, gt_image
+            yield image, gt
         elif phase == 'train':
+            yield image, gt
+            # yield jitter_input(hypes, image, gt)
 
-            yield jitter_input(hypes, image, gt_image)
-
-            yield jitter_input(hypes, np.fliplr(image), np.fliplr(gt_image))
+            # yield jitter_input(hypes, np.fliplr(image), np.fliplr(gt))
 
 
 def jitter_input(hypes, image, gt_image):
@@ -343,12 +346,16 @@ def start_enqueuing_threads(hypes, q, phase, sess):
 
     def make_feed(data):
         image, label = data
+        # logging.warning("IMage {} {}".format(image.shape,label.shape))
         return {image_pl: image, label_pl: label}
 
     def enqueue_loop(sess, enqueue_op, phase, gen):
         # infinity loop enqueueing data
         for d in gen:
-            sess.run(enqueue_op, feed_dict=make_feed(d))
+            try:
+                sess.run(enqueue_op, feed_dict=make_feed(d))
+            except Exception as ex: 
+                logging.error("Not working with image ")
 
     enqueue_op = q.enqueue((image_pl, label_pl))
     gen = _make_data_gen(hypes, phase, data_dir)
@@ -489,7 +496,7 @@ def inputs(hypes, q, phase):
 
 def main():
     """main."""
-    with open('../hypes/kitti_seg.json', 'r') as f:
+    with open('../hypes/wwe_vgg.json', 'r') as f:
         hypes = json.load(f)
 
     q = {}
