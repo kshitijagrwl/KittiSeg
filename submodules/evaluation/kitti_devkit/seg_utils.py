@@ -40,15 +40,18 @@ def blend_transparent(img, overlay_t_img):
 def paint(img,colormap):
     channel = len(colormap[0])
     new_im = np.zeros((img.shape[0],img.shape[1],channel))
-    for key in colormap :
+
+    for key in range(19) :
         new_im[np.where(img==key)] = colormap[key]
     return new_im
 
-def decode_labels(mask, img_shape, num_classes):
-    if num_classes == 150:
-        color_table = read_labelcolours(matfn)
-    else:
-        color_table = label_colours
+def decode_labels(mask, img_shape, num_classes,color_table):
+
+    print("Going here")
+    # if num_classes == 150:
+    #     color_table = read_labelcolours(matfn)
+    # else:
+    #     color_table = label_colours
 
     color_mat = tf.constant(color_table, dtype=tf.float32)
     onehot_output = tf.one_hot(mask, depth=num_classes)

@@ -121,7 +121,10 @@ def _load_gt_file(hypes, data_file=None):
             image = scipy.misc.imread(image_file, mode='RGB')
             # Please update Scipy, if mode='RGB' is not avaible
             gt_image = scp.misc.imread(gt_image_file, mode='RGB')
-
+            image, gt_image = crop_to_size(hypes, image, gt_image)
+            
+            if (image.size == 0) or (gt_image.size == 0):
+                raise ValueError("Image is empty {} or {}".format(image_file,gt_image_file ))
             yield image, gt_image
 
 
@@ -355,7 +358,7 @@ def start_enqueuing_threads(hypes, q, phase, sess):
             try:
                 sess.run(enqueue_op, feed_dict=make_feed(d))
             except Exception as ex: 
-                logging.error("Not working with image ")
+                logging.error("Not working with image \n{}".format(ex))
 
     enqueue_op = q.enqueue((image_pl, label_pl))
     gen = _make_data_gen(hypes, phase, data_dir)

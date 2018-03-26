@@ -246,8 +246,8 @@ def loss(hypes, decoded_logits, labels):
         total_loss = cross_entropy_mean + weight_loss
 
         losses = {}
-        losses['total_loss'] = total_loss
-        losses['xentropy'] = cross_entropy_mean
+        losses['total_loss']  = total_loss
+        losses['xentropy']    = cross_entropy_mean
         losses['weight_loss'] = weight_loss
 
     return losses

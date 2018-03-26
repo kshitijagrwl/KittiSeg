@@ -70,7 +70,7 @@ def evaluate(hypes, sess, image_pl, inf_out):
     #     del colors[key]
 
     eval_dict = {}
-    for phase in ['train', 'val']:
+    for phase in ['train','val']:
         data_file = hypes['data']['{}_file'.format(phase)]
         data_file = os.path.join(data_dir, data_file)
         image_dir = os.path.dirname(data_file)
@@ -85,7 +85,7 @@ def evaluate(hypes, sess, image_pl, inf_out):
 
         with open(data_file) as file:
             for i, datum in enumerate(file):
-                    datum = datum.rstrip()
+                    datum = datum.rstrip().rstrip('\r')
                     image_file, gt_file = datum.split(" ")
                     image_file = os.path.join(image_dir, image_file)
                     gt_file = os.path.join(image_dir, gt_file)
@@ -93,28 +93,17 @@ def evaluate(hypes, sess, image_pl, inf_out):
                     image = scp.misc.imread(image_file, mode='RGB')
                     gt_image = scp.misc.imread(gt_file, mode='RGB')
 
-                    # if hypes['jitter']['fix_shape']:
-                    #     shape = image.shape
-                    #     image_height = hypes['jitter']['image_height']
-                    #     image_width = hypes['jitter']['image_width']
-                    #     assert(image_height >= shape[0])
-                    #     assert(image_width >= shape[1])
+                    shape = gt_image.shape
+                    gt = np.all(gt_image == colors[0], axis=2).reshape(shape[0], shape[1],1)
+                    # print (gt.shape)
+                    for i in range(1,len(colors)) :
 
-                    #     offset_x = (image_height - shape[0])//2
-                    #     offset_y = (image_width - shape[1])//2
-                    #     new_image = np.zeros([image_height, image_width, 3])
-                    #     new_image[offset_x:offset_x+shape[0],
-                    #               offset_y:offset_y+shape[1]] = image
-                    #     input_image = new_image
-                    # elif hypes['jitter']['reseize_image']:
-                    #     image_height = hypes['jitter']['image_height']
-                    #     image_width = hypes['jitter']['image_width']
-                    #     gt_image_old = gt_image
-                    #     image, gt_image = resize_label_image(image, gt_image,
-                    #                                          image_height,
-                    #                                          image_width)
-                    #     input_image = image
-                    # else:
+                        new_gt = np.all(gt_image == colors[i], axis=2).reshape(shape[0], shape[1],1)
+                        # print(new_gt.shape)
+                        gt = np.concatenate((gt, new_gt), axis=2)
+
+                    print (gt.shape)
+
                     input_image = image
 
                     shape = input_image.shape
@@ -122,10 +111,11 @@ def evaluate(hypes, sess, image_pl, inf_out):
                     feed_dict = {image_pl: input_image}
 
                     output = sess.run([softmax], feed_dict=feed_dict)
-                    output = np.array(output)
+                    # output = np.array(output)
+
                     # print("Image shape : {}".format(output.shape))
-                    output_im = output.reshape(shape[0], shape[1],num_classes)
-                    output_im = np.argmax(output_im,axis=2)
+                    # output_im = output.reshape(shape[0], shape[1],num_classes)
+                    output = np.argmax(output,axis=2)
                     # raw_output_up = tf.argmax(raw_output_up, dimension=3)
                     # if hypes['jitter']['fix_shape']:
                     #     gt_shape = gt_image.shape
@@ -134,13 +124,30 @@ def evaluate(hypes, sess, image_pl, inf_out):
 
                     if phase == 'val':
 
-                        green_image = seg.decode_labels(output_im,shape,num_classes)
+                        # pred_flatten = tf.reshape(output_im, [-1,])
+                        # raw_gt = tf.reshape(gt_image, [-1,])
+                        # indices = tf.squeeze(tf.where(tf.less_equal(raw_gt, num_classes-1)), 1)
+                        # gt = tf.cast(tf.gather(raw_gt, indices), tf.int32)
+                        # pred = tf.gather(pred_flatten, indices)
 
-                        # green_image = seg.paint(output_im,colors)
+                        # mIoU, update_op = tf.contrib.metrics.streaming_mean_iou(pred, gt, num_classes=num_classes)
+
                         name = os.path.basename(image_file)
-                        image_list.append((name, green_image))
+                        fname = name.split('.')[0]+".txt"
 
-                        name2 = name.split('.')[0] + '_overlay.png'
+
+                        print (fname)
+                        np.savetxt("testing/"+fname,output,header=image_file,comments="#"+gt_file)
+
+                        # decode_labels
+                        inf_image = seg.paint(output.reshape(shape[:2]),colors)
+
+                        infname = "testing/"+name.split('.')[0] + '_color.png'
+
+                        scp.misc.imsave(infname,inf_image)
+                        # # green_image = seg.paint(output_im,colors)
+                        # image_list.append((name, green_image))
+
 
                         # ov_image = seg.blend_transparent(image,green_image)
                         # image_list.append((name2, ov_image))
@@ -154,18 +161,19 @@ def evaluate(hypes, sess, image_pl, inf_out):
                     total_posnum += posNum
                     total_negnum += negNum
 
-        eval_dict[phase] = seg.pxEval_maximizeFMeasure(
-            total_posnum, total_negnum, total_fn, total_fp, thresh=thresh)
+        # print("Got total FP FN etc\n")
+        # eval_dict[phase] = seg.pxEval_maximizeFMeasure(
+        #     total_posnum, total_negnum, total_fn, total_fp, thresh=thresh)
 
-        if phase == 'val':
-            start_time = time.time()
-            for i in xrange(10):
-                sess.run([softmax], feed_dict=feed_dict)
-            dt = (time.time() - start_time)/10
+        # if phase == 'val':
+        #     start_time = time.time()
+        #     for i in xrange(10):
+        #         sess.run([softmax], feed_dict=feed_dict)
+        #     dt = (time.time() - start_time)/10
 
     eval_list = []
 
-    for phase in ['train', 'val']:
+    for phase in ['train']:
         eval_list.append(('[{}] MaxF1'.format(phase),
                           100*eval_dict[phase]['MaxF']))
         eval_list.append(('[{}] BestThresh'.format(phase),
