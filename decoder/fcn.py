@@ -225,18 +225,26 @@ def loss(hypes, decoded_logits, labels):
         epsilon = tf.constant(value=hypes['solver']['epsilon'])
         # logits = logits + epsilon
         labels = tf.to_float(tf.reshape(labels, (-1, num_classes)))
+        # labels = tf.to_float(labels)
 
-        softmax = tf.nn.softmax(logits) + epsilon
+        print(labels.get_shape())
+        print(logits.get_shape())
+
+        softmax1 = tf.nn.softmax(logits) + epsilon
+        softmax = tf.nn.softmax_cross_entropy_with_logits(labels=labels,logits=logits)
+
+        # print(tf.nn.softmax(logits))
 
         if hypes['loss'] == 'xentropy':
             cross_entropy_mean = _compute_cross_entropy_mean(hypes, labels,
-                                                             softmax)
-        elif hypes['loss'] == 'softF1':
-            cross_entropy_mean = _compute_f1(hypes, labels, softmax, epsilon)
+                                                             softmax1)
+        print(softmax, softmax1,cross_entropy_mean)
+        # elif hypes['loss'] == 'softF1':
+        #     cross_entropy_mean = _compute_f1(hypes, labels, softmax, epsilon)
 
-        elif hypes['loss'] == 'softIU':
-            cross_entropy_mean = _compute_soft_ui(hypes, labels, softmax,
-                                                  epsilon)
+        # elif hypes['loss'] == 'softIU':
+        #     cross_entropy_mean = _compute_soft_ui(hypes, labels, softmax,
+                                                  # epsilon)
 
         reg_loss_col = tf.GraphKeys.REGULARIZATION_LOSSES
 
@@ -260,6 +268,7 @@ def _compute_cross_entropy_mean(hypes, labels, softmax):
 
     cross_entropy_mean = tf.reduce_mean(cross_entropy,
                                         name='xentropy_mean')
+
     return cross_entropy_mean
 
 
