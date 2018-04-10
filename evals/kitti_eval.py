@@ -154,7 +154,7 @@ def evaluate(hypes, sess, image_pl, inf_out):
 
 
                     FN, FP, posNum, negNum = eval_image(hypes,
-                                                        gt_image, output_im)
+                                                        gt_image, output)
 
                     total_fp += FP
                     total_fn += FN

@@ -227,8 +227,8 @@ def loss(hypes, decoded_logits, labels):
         labels = tf.to_float(tf.reshape(labels, (-1, num_classes)))
         # labels = tf.to_float(labels)
 
-        print(labels.get_shape())
-        print(logits.get_shape())
+        # print(labels.get_shape())
+        # print(logits.get_shape())
 
         softmax1 = tf.nn.softmax(logits) + epsilon
         softmax = tf.nn.softmax_cross_entropy_with_logits(labels=labels,logits=logits)
@@ -238,7 +238,7 @@ def loss(hypes, decoded_logits, labels):
         if hypes['loss'] == 'xentropy':
             cross_entropy_mean = _compute_cross_entropy_mean(hypes, labels,
                                                              softmax1)
-        print(softmax, softmax1,cross_entropy_mean)
+        # print(softmax.eval(), softmax1.eval(),cross_entropy_mean)
         # elif hypes['loss'] == 'softF1':
         #     cross_entropy_mean = _compute_f1(hypes, labels, softmax, epsilon)
 
@@ -257,6 +257,9 @@ def loss(hypes, decoded_logits, labels):
         losses['total_loss']  = total_loss
         losses['xentropy']    = cross_entropy_mean
         losses['weight_loss'] = weight_loss
+        losses['s1'] = softmax
+        losses['s2'] = softmax1
+
 
     return losses
 

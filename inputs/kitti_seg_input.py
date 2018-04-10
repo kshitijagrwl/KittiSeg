@@ -121,7 +121,7 @@ def _load_gt_file(hypes, data_file=None):
             image = scipy.misc.imread(image_file, mode='RGB')
             # Please update Scipy, if mode='RGB' is not avaible
             gt_image = scp.misc.imread(gt_image_file, mode='RGB')
-            image, gt_image = crop_to_size(hypes, image, gt_image)
+            image, gt_image = resize_aspectratio(hypes, image, gt_image)
             
             if (image.size == 0) or (gt_image.size == 0):
                 raise ValueError("Image is empty {} or {}".format(image_file,gt_image_file ))
@@ -174,6 +174,8 @@ def _make_data_gen(hypes, phase, data_dir):
             yield image, gt
         elif phase == 'train':
             yield image, gt
+            yield np.fliplr(image), np.fliplr(gt)
+            
             # yield jitter_input(hypes, image, gt)
 
             # yield jitter_input(hypes, np.fliplr(image), np.fliplr(gt))
@@ -292,6 +294,40 @@ def random_resize(image, gt_image, lower_size, upper_size, sig):
     gt_image = scipy.misc.imresize(gt_image, factor, interp='nearest')
     gt_image = gt_image[:, :, 0:2]/255
     return image, gt_image
+
+
+def resize_aspectratio(hypes,image,gt_image):
+
+    width = image.shape[1]
+    height = image.shape[0]
+    
+    new_width = hypes['arch']['image_width']
+    new_height = hypes['arch']['image_height']
+
+    ratio = width/float(height)
+    new_ratio = new_width/float(new_height)
+
+    factor = new_width/float(width)
+    if  new_ratio == ratio:
+
+        gt_image = scipy.misc.imresize(gt_image, factor, interp='nearest')
+        image = scipy.misc.imresize(image, factor, interp='nearest')
+
+    else:
+
+        gt_image = scipy.misc.imresize(gt_image, factor, interp='nearest')
+        image = scipy.misc.imresize(image, factor, interp='nearest')
+
+        if gt_image.shape[0] > new_height: 
+            # diff = gt_image.shape[0] - new_height
+            # h = gt_
+            gt_image = gt_image[:new_height,:]
+            image = image[:new_height,:]
+        # factor = new_width/float(width)
+
+    return image, gt_image
+
+
 
 
 def crop_to_size(hypes, image, gt_image):
